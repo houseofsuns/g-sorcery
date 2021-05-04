@@ -29,7 +29,7 @@ for mod in SELECTABLE:
         optional_modules.append('g_sorcery.%s' % SELECTABLE[mod])
 
 setup(name          = 'g-sorcery',
-      version       = '0.2.1',
+      version       = '0.2.2',
       description   = 'framework for automated ebuild generators',
       author        = 'Jauhien Piatlicki',
       author_email  = 'jauhien@gentoo.org',
