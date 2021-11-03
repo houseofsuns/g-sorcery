@@ -467,7 +467,8 @@ class Backend(object):
             Exit status.
         """
         try:
-            packages = global_config.get(config["backend"], args.repository + "_packages").split(" ")
+            packages = global_config.get(
+                config["backend"], args.repository + "_packages").split(" ")
         except Exception:
             packages = []
 
@@ -478,38 +479,30 @@ class Backend(object):
 
         os.system('rm -rf ' + overlay + '/*')
         os.makedirs(os.path.join(overlay, 'profiles'))
-        os.system("echo " + os.path.basename(overlay) + '>' + \
-                  os.path.join(overlay, 'profiles', 'repo_name'))
+        os.system("echo " + os.path.basename(overlay) + '>'
+                  + os.path.join(overlay, 'profiles', 'repo_name'))
 
         os.makedirs(os.path.join(overlay, 'metadata'))
-        if not "masters" in config["repositories"][args.repository]:
+        if "masters" not in config["repositories"][args.repository]:
             masters = elist(["gentoo"])
         else:
             masters = elist(config["repositories"][args.repository]["masters"])
 
-        overlays = FileJSON("/var/lib/g-sorcery", "overlays.json", [])
-        overlays_old_info = overlays.read()
-        overlays_info = {}
         masters_overlays = elist()
-        portage_overlays = [repo.location for repo in portage.settings.repositories]
+        repositories = {repo.name: repo
+                        for repo in portage.settings.repositories}
 
-        for repo, info in overlays_old_info.items():
-            if info["path"] in portage_overlays:
-                overlays_info[repo] = info
-
-        overlays.write(overlays_info)
-
-        for repo in masters:
-            if repo != "gentoo":
-                if not repo in overlays_info:
-                    self.logger.error("Master repository " + repo + " not available on your system")
-                    self.logger.error("Please, add it with layman -a " + repo)
+        for repo_name in masters:
+            if repo_name != "gentoo":
+                if repo_name not in repositories:
+                    self.logger.error("Master repository " + repo_name
+                                      + " not available on your system")
+                    self.logger.error("Please, add it with layman -a "
+                                      + repo_name)
                     return -1
-                masters_overlays.append(overlays_info[repo]["repo-name"])
-
+                masters_overlays.append(repo_name)
         masters_overlays.append("gentoo")
 
-        overlays_info[args.repository] = {"repo-name": os.path.basename(overlay), "path": overlay}
         with open(os.path.join(overlay, 'metadata', 'layout.conf'), 'w') as f:
             f.write("repo-name = %s\n" % os.path.basename(overlay))
             f.write("masters = %s\n" % masters_overlays)
@@ -545,7 +538,7 @@ class Backend(object):
                 os.makedirs(path)
             source = ebuild_g.generate(package, ebuild_data)
             with open(os.path.join(path,
-                        name + '-' + version + '.ebuild'),
+                                   name + '-' + version + '.ebuild'),
                       'wb') as f:
                 f.write('\n'.join(source).encode('utf-8'))
 
@@ -568,7 +561,6 @@ class Backend(object):
         else:
             pkgnames = catpkg_names
             self.fast_digest(overlay, pkgnames)
-        overlays.write(overlays_info)
 
         try:
             clean_db = config["repositories"][args.repository]["clean_db"]
