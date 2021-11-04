@@ -183,7 +183,7 @@ class DefaultEbuildGenerator(EbuildGenerator):
         if hasattr(layout, "eapi"):
             self.template.append("EAPI=%s" % layout.eapi)
         else:
-            self.template.append("EAPI=5")
+            self.template.append("EAPI=8")
         self.template.append("")
 
         if hasattr(layout, "vars_before_inherit"):
