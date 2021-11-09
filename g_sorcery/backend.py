@@ -13,6 +13,8 @@
 
 import argparse
 import os
+import pathlib
+import subprocess
 
 import portage
 
@@ -23,6 +25,7 @@ from .exceptions import DependencyError, DigestError, InvalidKeyError
 from .logger import Logger
 from .mangler import package_managers
 from .package_db import PackageDB
+
 
 class Backend(object):
     """
@@ -37,6 +40,7 @@ class Backend(object):
     search word
     generate package_name
     generate-tree [-d --digest]
+    update-tree [-d --digest]
     install package_name [portage flags]
 
     If no overlay directory is given the default one from backend config is used.
@@ -74,6 +78,10 @@ class Backend(object):
         p_generate_tree = subparsers.add_parser('generate-tree')
         p_generate_tree.add_argument('-d', '--digest', action='store_true')
         p_generate_tree.set_defaults(func=self.generate_tree)
+
+        p_update_tree = subparsers.add_parser('update-tree')
+        p_update_tree.add_argument('-d', '--digest', action='store_true')
+        p_update_tree.set_defaults(func=self.update_tree)
 
         p_install = subparsers.add_parser('install')
         p_install.add_argument('pkgname')
@@ -426,20 +434,33 @@ class Backend(object):
 
         return (solved_deps, unsolved_deps)
 
-
-    def digest(self, overlay):
+    def digest(self, overlay, pkgnames=None):
         """
-        Digest an overlay using repoman.
+        Digest an overlay using repoman or ebuild.
 
         Args:
             overlay: Overlay directory.
         """
         self.logger.info("digesting overlay")
-        prev = os.getcwd()
-        os.chdir(overlay)
-        if os.system("repoman manifest"):
-            raise DigestError('repoman manifest failed')
-        os.chdir(prev)
+        overlay_path = pathlib.Path(overlay)
+        if pkgnames is None:
+            try:
+                subprocess.run(['repoman', 'manifest'], check=True,
+                               cwd=overlay_path)
+            except subprocess.CalledProcessError as e:
+                raise DigestError('repoman manifest failed') from e
+        else:
+            for pkg in pkgnames:
+                pkg_path = overlay_path / pkg
+                try:
+                    ebuild = next(pkg_path.glob('*.ebuild'))
+                except StopIteration:
+                    raise ValueError(f'No ebuild for {pkg}')
+                try:
+                    subprocess.run(['ebuild', ebuild.name, 'manifest'],
+                                   check=True, cwd=pkg_path)
+                except subprocess.CalledProcessError as e:
+                    raise DigestError('ebuild manifest failed') from e
 
     def fast_digest(self, overlay, pkgnames):
         """
@@ -558,6 +579,138 @@ class Backend(object):
 
         if args.digest:
             self.digest(overlay)
+        else:
+            pkgnames = catpkg_names
+            self.fast_digest(overlay, pkgnames)
+
+        try:
+            clean_db = config["repositories"][args.repository]["clean_db"]
+        except KeyError:
+            clean_db = False
+        if clean_db:
+            pkg_db.clean()
+
+    def update_tree(self, args, config, global_config):
+        """
+        Update overlay touching only changed ebuilds.
+
+        Args:
+            args: Command line arguments.
+            config: Backend config.
+            global_config: g-sorcery config.
+
+        Returns:
+            Exit status.
+        """
+        try:
+            packages = global_config.get(
+                config["backend"], args.repository + "_packages").split(" ")
+        except Exception:
+            packages = []
+
+        self.logger.info("tree update")
+        overlay = self._get_overlay(args, config, global_config)
+        overlay_path = pathlib.Path(overlay)
+        pkg_db = self._get_package_db(args, config, global_config)
+        pkg_db.read()
+
+        profiles_path = overlay_path / 'profiles'
+        profiles_path.mkdir(exist_ok=True, parents=True)
+        with open(profiles_path / 'repo_name', 'w') as f:
+            f.write(overlay_path.name)
+
+        metadata_path = overlay_path / 'metadata'
+        metadata_path.mkdir(exist_ok=True, parents=True)
+        if "masters" not in config["repositories"][args.repository]:
+            masters = elist(["gentoo"])
+        else:
+            masters = elist(config["repositories"][args.repository]["masters"])
+
+        masters_overlays = elist()
+        repositories = {repo.name: repo
+                        for repo in portage.settings.repositories}
+        for repo_name in masters:
+            if repo_name != "gentoo":
+                if repo_name not in repositories:
+                    self.logger.error(
+                        f"Master repository {repo_name} not available on"
+                        " your system")
+                    self.logger.error(
+                        "Please, add it (either via layman or eselect"
+                        " repository)")
+                    return -1
+                masters_overlays.append(repo_name)
+        masters_overlays.append("gentoo")
+
+        with open(metadata_path / 'layout.conf', 'w') as f:
+            f.write(f"repo-name = {overlay_path.name}\n")
+            f.write(f"masters = {masters_overlays}\n")
+
+        if args.digest:
+            ebuild_g = self.ebuild_g_with_digest_class(pkg_db)
+        else:
+            ebuild_g = self.ebuild_g_without_digest_class(pkg_db)
+        metadata_g = self.metadata_g_class(pkg_db)
+
+        packages_iter = pkg_db
+        catpkg_names = pkg_db.list_catpkg_names()
+        if packages:
+            dependencies = set()
+            catpkg_names = set()
+            packages_dict = {}
+            for pkg in packages:
+                dependencies |= self.get_dependencies(pkg_db, pkg)
+
+            for pkg in dependencies:
+                catpkg_names |= set([f'{pkg.category}/{pkg.name}'])
+                packages_dict[pkg] = pkg_db.get_package_description(pkg)
+            packages_iter = packages_dict.items()
+
+        generated = []
+        kept = []
+        for package, ebuild_data in packages_iter:
+            category = package.category
+            name = package.name
+            version = package.version
+            path = overlay_path / category / name
+            path.mkdir(parents=True, exist_ok=True)
+            source = ebuild_g.generate(package, ebuild_data)
+            ebuild_path = path / f'{name}-{version}.ebuild'
+            preexists = ebuild_path.exists()
+            with open(ebuild_path, 'wb') as f:
+                f.write('\n'.join(source).encode('utf-8'))
+            for other in path.glob(f'{name}-*.ebuild'):
+                if other != ebuild_path:
+                    other.unlink()
+
+            source = metadata_g.generate(package)
+            with open(path / 'metadata.xml', 'wb') as f:
+                f.write('\n'.join(source).encode('utf-8'))
+
+            if not preexists:
+                self.logger.info(f"    generated {category}/{name}-{version}")
+                generated.append(package)
+            else:
+                self.logger.info(f"    refreshed {category}/{name}-{version}")
+                kept.append(package)
+
+        eclass_g = self.eclass_g_class()
+        path = overlay_path / 'eclass'
+        path.mkdir(exist_ok=True)
+
+        for eclass in eclass_g.list():
+            source = eclass_g.generate(eclass)
+            with open(path / f'{eclass}.eclass', 'w') as f:
+                f.write('\n'.join(source))
+
+        if args.digest:
+            generated_pkgnames = [f'{pkg.category}/{pkg.name}'
+                                  for pkg in generated]
+            self.logger.info(f"Digesting {len(generated_pkgnames)} packages.")
+            self.digest(overlay, generated_pkgnames)
+            kept_pkgnames = [f'{pkg.category}/{pkg.name}' for pkg in kept]
+            self.logger.info(f"Fast digesting {len(kept_pkgnames)} packages.")
+            self.fast_digest(overlay, kept_pkgnames)
         else:
             pkgnames = catpkg_names
             self.fast_digest(overlay, pkgnames)
