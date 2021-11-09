@@ -15,6 +15,7 @@ import glob
 import json
 import hashlib
 import os
+import pathlib
 import tarfile
 
 from .compatibility import TemporaryDirectory
@@ -214,23 +215,31 @@ def fast_manifest(directory):
     Args:
         directory: Directory.
     """
+    directory_path = pathlib.Path(directory)
     manifest = []
-    metadata = os.path.join(directory, "metadata.xml")
 
-    for aux in glob.glob(os.path.join(directory, "files/*")):
-        manifest.append(ManifestEntry(os.path.dirname(aux),
-                            os.path.basename(aux), "AUX"))
-    for ebuild in glob.glob(os.path.join(directory, "*.ebuild")):
-        manifest.append(ManifestEntry(directory,
-                            os.path.basename(ebuild), "EBUILD"))
-    if (os.path.isfile(metadata)):
+    files_path = directory_path / 'files'
+    for aux in files_path.glob('*'):
+        manifest.append(ManifestEntry(aux.parent, aux.name, "AUX"))
+    for ebuild in directory_path.glob("*.ebuild"):
+        manifest.append(ManifestEntry(directory, ebuild.name, "EBUILD"))
+    metadata = directory_path / "metadata.xml"
+    if metadata.is_file():
         manifest.append(ManifestEntry(directory, "metadata.xml", "MISC"))
 
     manifest = [" ".join([m.ftype, m.name, m.size,
                           "SHA512", m.sha512, "BLAKE2B", m.blake2b])
                 for m in manifest]
 
-    with open(os.path.join(directory, "Manifest"), 'w') as f:
+    manifest_path = directory_path / "Manifest"
+    if manifest_path.is_file():
+        with open(manifest_path, 'r') as f:
+            for line in f.read().splitlines():
+                if line.startswith('DIST'):
+                    manifest.append(line)
+        manifest.sort()
+
+    with open(manifest_path, 'w') as f:
         f.write('\n'.join(manifest) + '\n')
 
 
