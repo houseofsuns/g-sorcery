@@ -15,6 +15,7 @@ import glob
 import json
 import hashlib
 import os
+import pathlib
 import tarfile
 
 from .compatibility import TemporaryDirectory
@@ -182,7 +183,7 @@ class ManifestEntry(object):
     """
 
     __slots__ = ('directory', 'name', 'ftype',
-                 'size', 'sha256', 'sha512', 'whirlpool')
+                 'size', 'sha256', 'sha512', 'whirlpool', 'blake2b')
 
     def __init__(self, directory, name, ftype):
         self.directory = directory
@@ -197,15 +198,18 @@ class ManifestEntry(object):
         h_sha256 = hashlib.new('SHA256')
         h_sha512 = hashlib.new('SHA512')
         h_whirlpool = hashlib.new('whirlpool')
+        h_blake2b = hashlib.new('blake2b')
         with open(os.path.join(self.directory, self.name), 'rb') as f:
             src = f.read()
         h_sha256.update(src)
         h_sha512.update(src)
         h_whirlpool.update(src)
+        h_blake2b.update(src)
         self.size = str(len(src))
         self.sha256 = h_sha256.hexdigest()
         self.sha512 = h_sha512.hexdigest()
         self.whirlpool = h_whirlpool.hexdigest()
+        self.blake2b = h_blake2b.hexdigest()
 
 
 def fast_manifest(directory):
@@ -217,24 +221,31 @@ def fast_manifest(directory):
     Args:
         directory: Directory.
     """
+    directory_path = pathlib.Path(directory)
     manifest = []
-    metadata = os.path.join(directory, "metadata.xml")
 
-    for aux in glob.glob(os.path.join(directory, "files/*")):
-        manifest.append(ManifestEntry(os.path.dirname(aux),
-                            os.path.basename(aux), "AUX"))
-    for ebuild in glob.glob(os.path.join(directory, "*.ebuild")):
-        manifest.append(ManifestEntry(directory,
-                            os.path.basename(ebuild), "EBUILD"))
-    if (os.path.isfile(metadata)):
+    files_path = directory_path / 'files'
+    for aux in files_path.glob('*'):
+        manifest.append(ManifestEntry(aux.parent, aux.name, "AUX"))
+    for ebuild in directory_path.glob("*.ebuild"):
+        manifest.append(ManifestEntry(directory, ebuild.name, "EBUILD"))
+    metadata = directory_path / "metadata.xml"
+    if metadata.is_file():
         manifest.append(ManifestEntry(directory, "metadata.xml", "MISC"))
 
     manifest = [" ".join([m.ftype, m.name, m.size,
-                          "SHA256", m.sha256, "SHA512", m.sha512,
-                          "WHIRLPOOL", m.whirlpool])
+                          "BLAKE2B", m.blake2b, "SHA512", m.sha512])
                 for m in manifest]
 
-    with open(os.path.join(directory, "Manifest"), 'w') as f:
+    manifest_path = directory_path / "Manifest"
+    if manifest_path.is_file():
+        with open(manifest_path, 'r') as f:
+            for line in f.read().splitlines():
+                if line.startswith('DIST'):
+                    manifest.append(line)
+        manifest.sort()
+
+    with open(manifest_path, 'w') as f:
         f.write('\n'.join(manifest) + '\n')
 
 
