@@ -12,8 +12,10 @@
 """
 
 import argparse
+import itertools
 import os
 import pathlib
+import shutil
 import subprocess
 
 import portage
@@ -693,6 +695,19 @@ class Backend(object):
             else:
                 self.logger.info(f"    refreshed {category}/{name}-{version}")
                 kept.append(package)
+
+        protected = {'eclass', 'profiles', 'metadata'}
+        seen = {f'{pkg.category}/{pkg.name}'
+                for pkg in itertools.chain(generated, kept)}
+        for category in overlay_path.iterdir():
+            if category.name.startswith('.') or category.name in protected:
+                continue
+            if category.is_dir():
+                for package in category.iterdir():
+                    qualified = f'{category.name}/{package.name}'
+                    if package.is_dir() and qualified not in seen:
+                        self.logger.info(f"    cleaning {qualified}")
+                        shutil.rmtree(package)
 
         eclass_g = self.eclass_g_class()
         path = overlay_path / 'eclass'
