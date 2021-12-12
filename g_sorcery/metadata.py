@@ -16,6 +16,7 @@ from .exceptions import XMLGeneratorError
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 
+
 def prettify(tree):
     """
     Convert XML tree to a string.
@@ -29,6 +30,7 @@ def prettify(tree):
     rough_str = ET.tostring(tree, "utf-8").decode("utf-8")
     reparsed = minidom.parseString(rough_str)
     return reparsed.toprettyxml(encoding="utf-8").decode("utf-8")
+
 
 class XMLGenerator(object):
     """
@@ -252,7 +254,7 @@ class MetadataGenerator(object):
     """
     Metada generator. Generates metadata for a given package.
     """
-    def __init__(self, package_db, schema = None):
+    def __init__(self, package_db, schema=None):
         """
         Args:
             package_db: Package database.
