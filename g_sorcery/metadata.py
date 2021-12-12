@@ -127,6 +127,8 @@ class XMLGenerator(object):
         if attr:
             child.set(attr, value[0])
             value = value[1]
+        for k, v in tag.get('attributes', {}).items():
+            child.set(k, v)
         subtags = tag['subtags']
         if subtags:
             if 'text' in value:
@@ -139,76 +141,111 @@ class XMLGenerator(object):
 
 # A default schema describing metadata.xml
 # See http://devmanual.gentoo.org/ebuild-writing/misc-files/metadata/
-default_schema = [{'name' : 'herd',
-                   'multiple' : (True, ""),
-                   'required' : False,
-                   'subtags' : []},
-
-                   {'name' : 'maintainer',
-                   'multiple' : (True, ""),
-                   'required' : False,
-                   'subtags' : [{'name' : 'email',
-                                 'multiple' : (False, ""),
-                                 'required' : True,
-                                 'subtags' : []},
-                                 {'name' : 'name',
-                                 'multiple' : (False, ""),
-                                 'required' : False,
-                                 'subtags' : []},
-                                 {'name' : 'description',
-                                 'multiple' : (False, ""),
-                                 'required' : False,
-                                 'subtags' : []},
-                                 ]
+default_schema = [
+    {
+        'name': 'herd',
+        'multiple': (True, ""),
+        'required': False,
+        'subtags': []
+    },
+    {
+        'name': 'maintainer',
+        'multiple': (True, ""),
+        'attributes': {
+            'type': 'person'
+        },
+        'required': False,
+        'subtags': [
+            {
+                'name': 'email',
+                'multiple': (False, ""),
+                'required': True,
+                'subtags': []
+            },
+            {
+                'name': 'name',
+                'multiple': (False, ""),
+                'required': False,
+                'subtags': []
+            },
+            {
+                'name': 'description',
+                'multiple': (False, ""),
+                'required': False,
+                'subtags': []
+            },
+        ]
+    },
+    {
+        'name': 'longdescription',
+        'multiple': (False, ""),
+        'required': False,
+        'subtags': []
+    },
+    {
+        'name': 'use',
+        'multiple': (False, ""),
+        'required': False,
+        'subtags': [
+            {
+                'name': 'flag',
+                'multiple': (True, "name"),
+                'required': True,
+                'subtags': []
+            }
+        ]
+    },
+    {
+        'name': 'upstream',
+        'multiple': (False, ""),
+        'required': False,
+        'subtags': [
+            {
+                'name': 'maintainer',
+                'multiple': (True, ""),
+                'required': False,
+                'subtags': [
+                    {
+                        'name': 'name',
+                        'multiple': (False, ""),
+                        'required': True,
+                        'subtags': []
                     },
-
-                    {'name' : 'longdescription',
-                     'multiple' : (False, ""),
-                     'required' : False,
-                     'subtags' : []},
-
-                     {'name' : 'use',
-                     'multiple' : (False, ""),
-                     'required' : False,
-                     'subtags' : [{'name' : 'flag',
-                                 'multiple' : (True, "name"),
-                                 'required' : True,
-                                 'subtags' : []}]
-                     },
-
-                     {'name' : 'upstream',
-                     'multiple' : (False, ""),
-                     'required' : False,
-                     'subtags' : [{'name' : 'maintainer',
-                                 'multiple' : (True, ""),
-                                 'required' : False,
-                                 'subtags' : [{'name' : 'name',
-                                               'multiple' : (False, ""),
-                                               'required' : True,
-                                               'subtags' : []},
-                                               {'name' : 'email',
-                                               'multiple' : (False, ""),
-                                               'required' : False,
-                                               'subtags' : []}]},
-                                {'name' : 'changelog',
-                                 'multiple' : (False, ""),
-                                 'required' : False,
-                                 'subtags' : []},
-                                 {'name' : 'doc',
-                                 'multiple' : (False, ""),
-                                 'required' : False,
-                                 'subtags' : []},
-                                 {'name' : 'bugs-to',
-                                 'multiple' : (False, ""),
-                                 'required' : False,
-                                 'subtags' : []},
-                                 {'name' : 'remote-id',
-                                 'multiple' : (False, ""),
-                                 'required' : False,
-                                 'subtags' : []},
-                                ]
-                        },
-                   ]
+                    {
+                        'name': 'email',
+                        'multiple': (False, ""),
+                        'required': False,
+                        'subtags': []
+                    }
+                ]
+            },
+            {
+                'name': 'changelog',
+                'multiple': (False, ""),
+                'required': False,
+                'subtags': []
+            },
+            {
+                'name': 'doc',
+                'multiple': (False, ""),
+                'required': False,
+                'subtags': []
+            },
+            {
+                'name': 'bugs-to',
+                'multiple': (False, ""),
+                'required': False,
+                'subtags': []
+            },
+            {
+                'name': 'remote-id',
+                'multiple': (False, ""),
+                'required': False,
+                'subtags': []
+            },
+        ]
+    },
+]
 
 
 class MetadataGenerator(object):
