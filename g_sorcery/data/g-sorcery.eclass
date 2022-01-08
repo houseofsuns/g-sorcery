@@ -30,9 +30,6 @@ GSORCERY_FETCH_CMD="wget"
 
 EXPORT_FUNCTIONS src_unpack
 
-# The live property will disable Portage's network-sandbox in src_unpack()
-PROPERTIES+=" live"
-
 g-sorcery_fetch() {
 	addwrite "${GSORCERY_STORE_DIR}"
 	pushd "${GSORCERY_STORE_DIR}" >/dev/null || die "can't chdir to ${GSORCERY_STORE_DIR}"
