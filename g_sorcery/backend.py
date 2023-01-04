@@ -438,7 +438,7 @@ class Backend(object):
 
     def digest(self, overlay, pkgnames=None):
         """
-        Digest an overlay using repoman or ebuild.
+        Digest an overlay using pkgdev or ebuild.
 
         Args:
             overlay: Overlay directory.
@@ -447,10 +447,10 @@ class Backend(object):
         overlay_path = pathlib.Path(overlay)
         if pkgnames is None:
             try:
-                subprocess.run(['repoman', 'manifest'], check=True,
+                subprocess.run(['pkgdev', 'manifest'], check=True,
                                cwd=overlay_path)
             except subprocess.CalledProcessError as e:
-                raise DigestError('repoman manifest failed') from e
+                raise DigestError('pkgdev manifest failed') from e
         else:
             for pkg in pkgnames:
                 pkg_path = overlay_path / pkg
@@ -466,7 +466,7 @@ class Backend(object):
 
     def fast_digest(self, overlay, pkgnames):
         """
-        Digest an overlay using custom method faster than repoman.
+        Digest an overlay using custom method faster than pkgdev.
 
         Args:
             overlay: Overlay directory.

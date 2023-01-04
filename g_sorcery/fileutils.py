@@ -209,7 +209,7 @@ class ManifestEntry(object):
 def fast_manifest(directory):
     """
     Digest package directory.
-    This function is intended to be used in place of repoman manifest,
+    This function is intended to be used in place of pkgdev manifest,
     as it is to slow.
 
     Args:
