@@ -16,6 +16,7 @@ import json
 import hashlib
 import os
 import pathlib
+import subprocess
 import tarfile
 
 from .compatibility import TemporaryDirectory
@@ -149,17 +150,18 @@ def wget(uri, directory, output="", timeout = None):
     Returns:
         Nonzero in case of a failure.
     """
-    if timeout is None:
-        timeout_str = ' '
-    else:
-        timeout_str = ' -T ' + str(timeout)
-
+    cmd = ['wget']
     if output:
-        ret = os.system('wget ' + uri +
-                        ' -O ' + os.path.join(directory, output) + timeout_str)
+        cmd.extend(['-O', os.path.join(directory, output)])
     else:
-        ret = os.system('wget -P ' + directory + ' ' + uri + timeout_str)
-    return ret
+        cmd.extend(['-P', directory])
+    if timeout:
+        cmd.extend(['-T', str(timeout)])
+    cmd.append(uri)
+
+    ret = subprocess.run(cmd, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+    return ret.returncode
 
 def get_pkgpath(root = None):
     """
