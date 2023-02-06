@@ -137,7 +137,7 @@ def copy_all(src, dst):
     """
     os.system("cp -rv " + src + "/* " + dst)
 
-def wget(uri, directory, output="", timeout = None):
+def wget(uri, directory, output="", timeout=None):
     """
     Fetch a file.
 
@@ -150,7 +150,7 @@ def wget(uri, directory, output="", timeout = None):
     Returns:
         Nonzero in case of a failure.
     """
-    cmd = ['wget']
+    cmd = ['wget', '-U', 'wget for g-sorcery']
     if output:
         cmd.extend(['-O', os.path.join(directory, output)])
     else:
