@@ -559,11 +559,18 @@ class DBGenerator(object):
             common_config = common_config_f.read()
 
         if generate:
+            self.pre_clean_for_generation(pkg_db)
             pkg_db.clean()
             self.generate_tree(pkg_db, common_config, config)
             pkg_db.write()
         return pkg_db
 
+    def pre_clean_for_generation(self, pkg_db):
+        """Hook called before generating a new database.
+
+        By default this does nothing.
+        """
+        pass
 
     def generate_tree(self, pkg_db, common_config, config):
         """
