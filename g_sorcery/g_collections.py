@@ -74,6 +74,9 @@ class serializable_elist(object):
     def append(self, x):
         self.data.append(x)
 
+    def extend(self, xs):
+        self.data.extend(xs)
+
     def serialize(self):
         return {"separator": self.data._sep_, "data" : self.data}
 
