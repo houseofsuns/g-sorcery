@@ -773,3 +773,23 @@ class DBGenerator(object):
                         result = True
                         break
         return result
+
+    def combine_config_lists(self, configs, list_name):
+        """
+        Retrieve a list of values from multiple configs.
+
+        This combines all found values.
+
+        Args:
+            configs: List of configs.
+            list_name: Name of a list in config that should be retrieved.
+
+        Returns:
+            List of values (empty if entry is absent).
+        """
+        result = []
+        for config in configs:
+            if config:
+                if list_name in config:
+                    result.extend(config[list_name])
+        return result
