@@ -793,3 +793,23 @@ class DBGenerator(object):
                 if list_name in config:
                     result.extend(config[list_name])
         return result
+
+    def combine_config_dicts(self, configs, dict_name):
+        """
+        Retrieve a dict of key-value-pairs from multiple configs.
+
+        This combines all found dicts.
+
+        Args:
+            configs: List of configs.
+            dict_name: Name of a dict in config that should be retrieved.
+
+        Returns:
+            Dict of key-value-pairs (empty if entry is absent).
+        """
+        result = {}
+        for config in configs:
+            if config:
+                if dict_name in config:
+                    result.update(config[dict_name])
+        return result
