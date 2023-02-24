@@ -182,7 +182,7 @@ class ManifestEntry(object):
     """
 
     __slots__ = ('directory', 'name', 'ftype',
-                 'size', 'sha256', 'sha512', 'whirlpool')
+                 'size', 'sha512', 'blake2b')
 
     def __init__(self, directory, name, ftype):
         self.directory = directory
@@ -194,18 +194,15 @@ class ManifestEntry(object):
         """
         Digest a file associated with a manifest entry.
         """
-        h_sha256 = hashlib.new('SHA256')
         h_sha512 = hashlib.new('SHA512')
-        h_whirlpool = hashlib.new('whirlpool')
+        h_blake2b = hashlib.new('blake2b')
         with open(os.path.join(self.directory, self.name), 'rb') as f:
             src = f.read()
-        h_sha256.update(src)
         h_sha512.update(src)
-        h_whirlpool.update(src)
+        h_blake2b.update(src)
         self.size = str(len(src))
-        self.sha256 = h_sha256.hexdigest()
         self.sha512 = h_sha512.hexdigest()
-        self.whirlpool = h_whirlpool.hexdigest()
+        self.blake2b = h_blake2b.hexdigest()
 
 
 def fast_manifest(directory):
@@ -230,8 +227,7 @@ def fast_manifest(directory):
         manifest.append(ManifestEntry(directory, "metadata.xml", "MISC"))
 
     manifest = [" ".join([m.ftype, m.name, m.size,
-                          "SHA256", m.sha256, "SHA512", m.sha512,
-                          "WHIRLPOOL", m.whirlpool])
+                          "SHA512", m.sha512, "BLAKE2B", m.blake2b])
                 for m in manifest]
 
     with open(os.path.join(directory, "Manifest"), 'w') as f:
