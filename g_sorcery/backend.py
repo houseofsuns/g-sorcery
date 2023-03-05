@@ -83,6 +83,7 @@ class Backend(object):
 
         p_update_tree = subparsers.add_parser('update-tree')
         p_update_tree.add_argument('-d', '--digest', action='store_true')
+        p_update_tree.add_argument('-k', '--keep', action='store_true')
         p_update_tree.set_defaults(func=self.update_tree)
 
         p_install = subparsers.add_parser('install')
@@ -706,8 +707,11 @@ class Backend(object):
                 for package in category.iterdir():
                     qualified = f'{category.name}/{package.name}'
                     if package.is_dir() and qualified not in seen:
-                        self.logger.info(f"    cleaning {qualified}")
-                        shutil.rmtree(package)
+                        if not args.keep:
+                            self.logger.info(f"    cleaning {qualified}")
+                            shutil.rmtree(package)
+                        else:
+                            self.logger.info(f"    keeping {qualified}")
 
         eclass_g = self.eclass_g_class()
         path = overlay_path / 'eclass'
