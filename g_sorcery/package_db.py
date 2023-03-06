@@ -11,7 +11,10 @@
     :license: GPL-2, see LICENSE for more details.
 """
 
+import functools
 import os
+import sys
+import unicodedata
 
 import portage
 
@@ -813,3 +816,80 @@ class DBGenerator(object):
                 if dict_name in config:
                     result.update(config[dict_name])
         return result
+
+    @functools.cache
+    @staticmethod
+    def _strip_mask_default():
+        return {i for i in range(sys.maxunicode)
+                if unicodedata.category(chr(i)).startswith('C')}
+
+    @staticmethod
+    def strip_characters(s, mask=None):
+        """By default remove all non-normal unicode characters.
+
+        This allows basically everything except for control, format,
+        surrogate, private use and unassigned code points.
+        """
+        mask = mask or DBGenerator._strip_mask_default()
+        return "".join(c for c in s if ord(c) not in mask)
+
+    @functools.cache
+    @staticmethod
+    def _filter_mask(mask_spec):
+        ret = set()
+        for item in mask_spec:
+            match item:
+                case (lower, upper):
+                    ret |= set(range(ord(lower), ord(upper) + 1))
+                case string:
+                    ret |= {ord(c) for c in string}
+        return ret
+
+    @staticmethod
+    def filter_characters(s, mask_spec=[
+            ('a', 'z'), ('A', 'Z'), ('0', '9'),
+            ''' !#%'()*+,-./:;=>?@[]^_{|}~''']):
+        """By default allow all normal ASCII characters except trouble makers.
+
+        This especially allows spaces, but not tabs and excludes the
+        characters "`$\\ which cause trouble when inside a double-quoted
+        string in bash as well as <& which cause trouble when inside an XML
+        value.
+
+        In some situations it may be appropriate to avoid any characters that
+        have a special meaning for dependency specification, these are: !?|^()
+        """
+        mask = DBGenerator._filter_mask(tuple(mask_spec))
+        return "".join(c for c in s if ord(c) in mask)
+
+    @staticmethod
+    def escape_bash_string(value):
+        """Escape as apropriate for double quoted strings in bash.
+
+        This escapes characters that are active in double quoted strings in
+        bash.
+        """
+        substitutions = {
+            '"': r'\"',
+            '`': r'\`',
+            '$': r'\$',
+            '\\': '\\\\',
+        }
+        return "".join(substitutions.get(c, c) for c in value)
+
+    @staticmethod
+    def escape_xml_string(value):
+        """Escape as apropriate for xml values.
+
+        This escapes characters that are active in xml values. Technically <
+        and & would be enough, but escaping the other active characters
+        doesn't hurt.
+        """
+        substitutions = {
+            "'": '&apos;',
+            '"': '&quot;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '&': '&amp;',
+        }
+        return "".join(substitutions.get(c, c) for c in value)
