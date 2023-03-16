@@ -230,7 +230,7 @@ def fast_manifest(directory):
         manifest.append(ManifestEntry(directory, "metadata.xml", "MISC"))
 
     manifest = [" ".join([m.ftype, m.name, m.size,
-                          "SHA512", m.sha512, "BLAKE2B", m.blake2b])
+                          "BLAKE2B", m.blake2b, "SHA512", m.sha512])
                 for m in manifest]
 
     manifest_path = directory_path / "Manifest"
