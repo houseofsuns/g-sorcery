@@ -79,11 +79,13 @@ class Backend(object):
 
         p_generate_tree = subparsers.add_parser('generate-tree')
         p_generate_tree.add_argument('-d', '--digest', action='store_true')
+        p_generate_tree.add_argument('-e', '--erase', action='store_true')
         p_generate_tree.set_defaults(func=self.generate_tree)
 
         p_update_tree = subparsers.add_parser('update-tree')
         p_update_tree.add_argument('-d', '--digest', action='store_true')
         p_update_tree.add_argument('-k', '--keep', action='store_true')
+        p_update_tree.add_argument('-e', '--erase', action='store_true')
         p_update_tree.set_defaults(func=self.update_tree)
 
         p_install = subparsers.add_parser('install')
@@ -250,7 +252,7 @@ class Backend(object):
         self.generate_eclasses(overlay, eclasses)
         self.generate_ebuilds(pkg_db, overlay, dependencies, True)
         self.generate_metadatas(pkg_db, overlay, dependencies)
-        self.digest(overlay)
+        self.digest(overlay, erase=args.erase)
         return 0
 
     def generate_ebuilds(self, package_db, overlay, packages, digest=False):
@@ -437,7 +439,7 @@ class Backend(object):
 
         return (solved_deps, unsolved_deps)
 
-    def digest(self, overlay, pkgnames=None):
+    def digest(self, overlay, pkgnames=None, erase=False):
         """
         Digest an overlay using pkgdev or ebuild.
 
@@ -451,6 +453,7 @@ class Backend(object):
                 subprocess.run(['pkgdev', 'manifest'], check=True,
                                cwd=overlay_path)
             except subprocess.CalledProcessError as e:
+                # FIXME implement erase semantics
                 raise DigestError('pkgdev manifest failed') from e
         else:
             for pkg in pkgnames:
@@ -463,7 +466,12 @@ class Backend(object):
                     subprocess.run(['ebuild', ebuild.name, 'manifest'],
                                    check=True, cwd=pkg_path)
                 except subprocess.CalledProcessError as e:
-                    raise DigestError('ebuild manifest failed') from e
+                    if erase:
+                        shutil.rmtree(pkg_path)
+                        self.logger.warn(
+                            f"Erasing {pkg} due to manifest failure.")
+                    else:
+                        raise DigestError('ebuild manifest failed') from e
 
     def fast_digest(self, overlay, pkgnames):
         """
@@ -581,7 +589,7 @@ class Backend(object):
                 f.write('\n'.join(source))
 
         if args.digest:
-            self.digest(overlay)
+            self.digest(overlay, erase=args.erase)
         else:
             pkgnames = catpkg_names
             self.fast_digest(overlay, pkgnames)
@@ -726,7 +734,7 @@ class Backend(object):
             generated_pkgnames = [f'{pkg.category}/{pkg.name}'
                                   for pkg in generated]
             self.logger.info(f"Digesting {len(generated_pkgnames)} packages.")
-            self.digest(overlay, generated_pkgnames)
+            self.digest(overlay, generated_pkgnames, erase=args.erase)
             kept_pkgnames = [f'{pkg.category}/{pkg.name}' for pkg in kept]
             self.logger.info(f"Fast digesting {len(kept_pkgnames)} packages.")
             self.fast_digest(overlay, kept_pkgnames)
