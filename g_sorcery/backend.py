@@ -458,20 +458,20 @@ class Backend(object):
         else:
             for pkg in pkgnames:
                 pkg_path = overlay_path / pkg
-                try:
-                    ebuild = next(pkg_path.glob('*.ebuild'))
-                except StopIteration:
-                    raise ValueError(f'No ebuild for {pkg}')
-                try:
-                    subprocess.run(['ebuild', ebuild.name, 'manifest'],
-                                   check=True, cwd=pkg_path)
-                except subprocess.CalledProcessError as e:
-                    if erase:
-                        shutil.rmtree(pkg_path)
-                        self.logger.warn(
-                            f"Erasing {pkg} due to manifest failure.")
-                    else:
-                        raise DigestError('ebuild manifest failed') from e
+                for ebuild in pkg_path.glob('*.ebuild'):
+                    try:
+                        subprocess.run(['ebuild', ebuild.name, 'manifest'],
+                                       check=True, cwd=pkg_path)
+                    except subprocess.CalledProcessError as e:
+                        if erase:
+                            ebuild.unlink()
+                            self.logger.warn(
+                                f"Erasing {ebuild.name} for manifest failure.")
+                            if not list(pkg_path.glob('*.ebuild')):
+                                shutil.rmtree(pkg_path)
+                                self.logger.warn(f"Completely erasing {pkg}.")
+                        else:
+                            raise DigestError('ebuild manifest failed') from e
 
     def fast_digest(self, overlay, pkgnames):
         """
