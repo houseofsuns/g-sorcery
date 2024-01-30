@@ -456,22 +456,24 @@ class Backend(object):
                 # FIXME implement erase semantics
                 raise DigestError('pkgdev manifest failed') from e
         else:
+            env = os.environ.copy()
+            env['FEATURES'] = 'assume-digests'
             for pkg in pkgnames:
                 pkg_path = overlay_path / pkg
-                for ebuild in pkg_path.glob('*.ebuild'):
-                    try:
-                        subprocess.run(['ebuild', ebuild.name, 'manifest'],
-                                       check=True, cwd=pkg_path)
-                    except subprocess.CalledProcessError as e:
-                        if erase:
-                            ebuild.unlink()
-                            self.logger.warn(
-                                f"Erasing {ebuild.name} for manifest failure.")
-                            if not list(pkg_path.glob('*.ebuild')):
-                                shutil.rmtree(pkg_path)
-                                self.logger.warn(f"Completely erasing {pkg}.")
-                        else:
-                            raise DigestError('ebuild manifest failed') from e
+                try:
+                    ebuild = next(pkg_path.glob('*.ebuild'))
+                except StopIteration:
+                    raise ValueError(f'No ebuild for {pkg}')
+                try:
+                    subprocess.run(['ebuild', ebuild.name, 'manifest'],
+                                   check=True, cwd=pkg_path, env=env)
+                except subprocess.CalledProcessError as e:
+                    if erase:
+                        shutil.rmtree(pkg_path)
+                        self.logger.warn(
+                            f"Erasing {pkg} due to manifest failure.")
+                    else:
+                        raise DigestError('ebuild manifest failed') from e
 
     def fast_digest(self, overlay, pkgnames):
         """
@@ -483,8 +485,9 @@ class Backend(object):
         """
         self.logger.info("fast digesting overlay")
         for pkgname in pkgnames:
-            directory = os.path.join(overlay, pkgname)
-            fast_manifest(directory)
+            directory = pathlib.Path(overlay) / pkgname
+            if directory.exists():
+                fast_manifest(directory)
 
     def generate_tree(self, args, config, global_config):
         """
@@ -679,6 +682,8 @@ class Backend(object):
 
         generated = []
         kept = []
+        new = set()
+        total = set()
         for package, ebuild_data in packages_iter:
             category = package.category
             name = package.name
@@ -690,10 +695,13 @@ class Backend(object):
             preexists = ebuild_path.exists()
             with open(ebuild_path, 'wb') as f:
                 f.write('\n'.join(source).encode('utf-8'))
+            new.add(ebuild_path)
             for other in path.glob(f'{name}-*.ebuild'):
-                if other != ebuild_path:
-                    other.unlink()
+                total.add(other)
 
+            # If multiple vorsions of the same package a generated this
+            # clobbers the metadata.xml. However no apparently better option
+            # presents itself.
             source = metadata_g.generate(package)
             with open(path / 'metadata.xml', 'wb') as f:
                 f.write('\n'.join(source).encode('utf-8'))
@@ -705,6 +713,12 @@ class Backend(object):
                 self.logger.info(f"    refreshed {category}/{name}-{version}")
                 kept.append(package)
 
+        # First clean untouched ebuilds in updated packages
+        for stale in total - new:
+            self.logger.info(f"    scrub {stale}")
+            stale.unlink()
+
+        # Second clean packages which were not updated
         protected = {'eclass', 'profiles', 'metadata'}
         seen = {f'{pkg.category}/{pkg.name}'
                 for pkg in itertools.chain(generated, kept)}
@@ -731,13 +745,14 @@ class Backend(object):
                 f.write('\n'.join(source))
 
         if args.digest:
-            generated_pkgnames = [f'{pkg.category}/{pkg.name}'
-                                  for pkg in generated]
+            generated_pkgnames = {f'{pkg.category}/{pkg.name}'
+                                  for pkg in generated}
             self.logger.info(f"Digesting {len(generated_pkgnames)} packages.")
             self.digest(overlay, generated_pkgnames, erase=args.erase)
-            kept_pkgnames = [f'{pkg.category}/{pkg.name}' for pkg in kept]
-            self.logger.info(f"Fast digesting {len(kept_pkgnames)} packages.")
-            self.fast_digest(overlay, kept_pkgnames)
+            kept_pkgnames = {f'{pkg.category}/{pkg.name}' for pkg in kept}
+            todo_pkgnames = kept_pkgnames - generated_pkgnames
+            self.logger.info(f"Fast digesting {len(todo_pkgnames)} packages.")
+            self.fast_digest(overlay, todo_pkgnames)
         else:
             pkgnames = catpkg_names
             self.fast_digest(overlay, pkgnames)
