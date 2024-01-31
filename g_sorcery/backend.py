@@ -458,7 +458,7 @@ class Backend(object):
         else:
             env = os.environ.copy()
             env['FEATURES'] = 'assume-digests'
-            for pkg in pkgnames:
+            for pkg in sorted(pkgnames):
                 pkg_path = overlay_path / pkg
                 try:
                     ebuild = next(pkg_path.glob('*.ebuild'))
@@ -484,7 +484,7 @@ class Backend(object):
             pkgnames: List of full package names (category/package).
         """
         self.logger.info("fast digesting overlay")
-        for pkgname in pkgnames:
+        for pkgname in sorted(pkgnames):
             directory = pathlib.Path(overlay) / pkgname
             if directory.exists():
                 fast_manifest(directory)
